@@ -1,0 +1,24 @@
+# Recon output directories produced by /fingerprint runs
+recon/
+
+# Scope file (target-specific; should not be committed)
+scope.txt
+
+# Personal SOP notes (kept local)
+planning.txt
+tools.txt
+note.txt
+
+# Internal design docs (kept local)
+docs/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Claude Code session artifacts
+.claude/
