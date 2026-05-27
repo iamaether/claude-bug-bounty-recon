@@ -18,17 +18,48 @@ Otherwise proceed with the steps below **in order**. Do NOT skip preflight. Do N
 
 ## Step 1 — Tool preflight
 
-Run this single bash command and capture output:
+Some tools (e.g. `linkfinder`) are Python scripts that may NOT be on `$PATH` as a bare command — they could be installed at `~/tools/LinkFinder/linkfinder.py` or similar. The preflight must handle this. Run this bash block:
 
 ```bash
+has_tool() {
+  local t="$1"
+  # 1. Plain command on PATH
+  command -v "$t" >/dev/null 2>&1 && return 0
+  # 2. With .py extension on PATH
+  command -v "${t}.py" >/dev/null 2>&1 && return 0
+  # 3. User override env var (e.g. LINKFINDER_PATH=/custom/path/linkfinder.py)
+  local upper override
+  upper=$(echo "$t" | tr '[:lower:]' '[:upper:]')
+  override="${!upper}_PATH"
+  override="${!override:-}"
+  [ -n "$override" ] && [ -f "$override" ] && return 0
+  # 4. Common clone / install locations
+  local p
+  for p in "$HOME/tools/$t" "$HOME/tools/${t^}" "$HOME/$t" "$HOME/${t^}" \
+           "/opt/$t" "/opt/${t^}" "/usr/share/$t" "$HOME/.local/share/$t"; do
+    [ -f "$p/$t" ] && return 0
+    [ -f "$p/${t}.py" ] && return 0
+  done
+  return 1
+}
+
+MISSING=()
 for t in subfinder amass assetfinder findomain chaos dnsx httpx katana gospider hakrawler waybackurls gau subjs linkfinder nmap rustscan jq; do
-  if ! command -v "$t" >/dev/null 2>&1; then echo "MISSING: $t"; fi
+  if ! has_tool "$t"; then MISSING+=("$t"); fi
 done
+
+if [ ${#MISSING[@]} -gt 0 ]; then
+  printf 'MISSING: %s\n' "${MISSING[@]}"
+fi
 ```
 
 If any `MISSING:` lines appear, print them and stop with:
 
 > Required tools are missing. Install them in your Kali VM and re-run /fingerprint.
+>
+> If a tool IS installed but the check still fails (e.g. a Python script at a custom path),
+> set the path explicitly before re-running, e.g.:
+>     export LINKFINDER_PATH=/path/to/linkfinder.py
 
 Do NOT proceed.
 

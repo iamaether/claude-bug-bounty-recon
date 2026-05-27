@@ -113,16 +113,62 @@ go_install gau      github.com/lc/gau/v2/cmd/gau@latest
 go_install subjs    github.com/lc/subjs@latest
 
 # --- linkfinder (python) ---
-if ! have linkfinder; then
+# Tricky: pipx/pip may install linkfinder but not always create a `linkfinder`
+# binary on PATH. We try install paths first, then create a wrapper if needed.
+install_linkfinder() {
+  if have linkfinder; then ok "linkfinder already installed"; return 0; fi
+
   log "Installing linkfinder via pipx (or pip --user)..."
   if have pipx; then
-    pipx install linkfinder 2>/dev/null || pipx install git+https://github.com/GerbenJavado/LinkFinder.git
+    pipx install linkfinder 2>/dev/null || \
+      pipx install git+https://github.com/GerbenJavado/LinkFinder.git 2>/dev/null
   else
     pip3 install --user --quiet linkfinder 2>/dev/null || \
-      pip3 install --user --quiet git+https://github.com/GerbenJavado/LinkFinder.git
+      pip3 install --user --quiet git+https://github.com/GerbenJavado/LinkFinder.git 2>/dev/null
   fi
-  have linkfinder && ok "linkfinder installed" || warn "linkfinder install failed — install manually if needed"
-fi
+
+  # If still not on PATH, find linkfinder.py and create a wrapper
+  if ! have linkfinder; then
+    log "linkfinder binary not on PATH — searching for linkfinder.py to wrap..."
+    LF_PY=""
+    for cand in \
+      "$HOME/.local/lib/python"*/site-packages/linkfinder/linkfinder.py \
+      "$HOME/.local/pipx/venvs/linkfinder/lib/python"*/site-packages/linkfinder/linkfinder.py \
+      "$HOME/tools/LinkFinder/linkfinder.py" \
+      "$HOME/LinkFinder/linkfinder.py" \
+      "/opt/LinkFinder/linkfinder.py"; do
+      [ -f "$cand" ] && LF_PY="$cand" && break
+    done
+
+    if [ -z "$LF_PY" ]; then
+      log "No existing linkfinder.py found — cloning to ~/tools/LinkFinder..."
+      mkdir -p "$HOME/tools"
+      if git clone --quiet https://github.com/GerbenJavado/LinkFinder.git "$HOME/tools/LinkFinder" 2>/dev/null; then
+        LF_PY="$HOME/tools/LinkFinder/linkfinder.py"
+        pip3 install --user --quiet -r "$HOME/tools/LinkFinder/requirements.txt" 2>/dev/null || true
+      fi
+    fi
+
+    if [ -n "$LF_PY" ] && [ -f "$LF_PY" ]; then
+      mkdir -p "$HOME/.local/bin"
+      cat > "$HOME/.local/bin/linkfinder" <<EOF
+#!/usr/bin/env bash
+exec python3 "$LF_PY" "\$@"
+EOF
+      chmod +x "$HOME/.local/bin/linkfinder"
+      export PATH="$HOME/.local/bin:$PATH"
+      if ! grep -q '.local/bin' "$HOME/.bashrc" 2>/dev/null; then
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
+      fi
+      ok "linkfinder wrapper created at \$HOME/.local/bin/linkfinder (wraps $LF_PY)"
+    else
+      err "Could not locate or install linkfinder.py — install manually"
+    fi
+  else
+    ok "linkfinder installed"
+  fi
+}
+install_linkfinder
 
 # --- rustscan ---
 if ! have rustscan; then
@@ -142,12 +188,34 @@ fi
 
 # --- final audit -------------------------------------------------------------
 
+# Smarter detection that matches the runtime preflight in fingerprint.md.
+# Catches Python scripts not on PATH as bare commands.
+has_tool() {
+  local t="$1"
+  command -v "$t" >/dev/null 2>&1 && return 0
+  command -v "${t}.py" >/dev/null 2>&1 && return 0
+  local upper override
+  upper=$(echo "$t" | tr '[:lower:]' '[:upper:]')
+  override="${upper}_PATH"
+  override="${!override:-}"
+  [ -n "$override" ] && [ -f "$override" ] && return 0
+  local p
+  for p in "$HOME/tools/$t" "$HOME/tools/${t^}" "$HOME/$t" "$HOME/${t^}" \
+           "/opt/$t" "/opt/${t^}" "/usr/share/$t" "$HOME/.local/bin/$t" \
+           "$HOME/.local/share/$t"; do
+    [ -f "$p/$t" ] && return 0
+    [ -f "$p/${t}.py" ] && return 0
+    [ -f "$p" ] && return 0
+  done
+  return 1
+}
+
 echo
 log "Verifying all required tools..."
 REQUIRED=(subfinder amass assetfinder findomain chaos dnsx httpx katana gospider hakrawler waybackurls gau subjs linkfinder nmap rustscan jq)
 MISSING=()
 for t in "${REQUIRED[@]}"; do
-  if have "$t"; then ok "$t"; else err "$t"; MISSING+=("$t"); fi
+  if has_tool "$t"; then ok "$t"; else err "$t"; MISSING+=("$t"); fi
 done
 
 echo
