@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# install.sh — installs the bug-bounty-recon plugin into Claude Code.
-# Copies bug-bounty-recon/ into ~/.claude/plugins/ and prints next steps.
+# install.sh — installs the bug-bounty-recon command and subagents into Claude Code.
+# Uses the FLAT user-scope layout (~/.claude/commands/ and ~/.claude/agents/)
+# which auto-loads without any plugin/marketplace registration.
 
 set -u
 
@@ -16,40 +17,57 @@ warn() { printf "%s[!]%s %s\n" "$C_YELLOW" "$C_RESET" "$1"; }
 err()  { printf "%s[-]%s %s\n" "$C_RED"    "$C_RESET" "$1"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_SRC="$SCRIPT_DIR/bug-bounty-recon"
-PLUGIN_DST="$HOME/.claude/plugins/bug-bounty-recon"
+SRC_DIR="$SCRIPT_DIR/bug-bounty-recon"
+SRC_COMMANDS="$SRC_DIR/commands"
+SRC_AGENTS="$SRC_DIR/agents"
+
+DST_COMMANDS="$HOME/.claude/commands"
+DST_AGENTS="$HOME/.claude/agents"
+LEGACY_PLUGIN_DIR="$HOME/.claude/plugins/bug-bounty-recon"
 
 # --- preflight ---------------------------------------------------------------
 
-if [ ! -d "$PLUGIN_SRC" ]; then
-  err "Plugin folder not found at $PLUGIN_SRC"
+if [ ! -d "$SRC_DIR" ]; then
+  err "Source folder not found at $SRC_DIR"
   err "Run this script from the repo root that contains bug-bounty-recon/"
   exit 1
 fi
 
-if [ ! -f "$PLUGIN_SRC/.claude-plugin/plugin.json" ]; then
-  err "Plugin manifest missing: $PLUGIN_SRC/.claude-plugin/plugin.json"
+if [ ! -d "$SRC_COMMANDS" ] || [ ! -d "$SRC_AGENTS" ]; then
+  err "Expected bug-bounty-recon/commands/ and bug-bounty-recon/agents/ in source"
   exit 1
 fi
 
 if ! command -v claude >/dev/null 2>&1; then
   warn "claude CLI not found on PATH. Install Claude Code first:"
   warn "  https://docs.anthropic.com/en/docs/claude-code/setup"
-  warn "Plugin files will still be installed in ~/.claude/plugins/ for when you do install it."
+  warn "Files will still be installed for when you do install it."
+fi
+
+# --- clean up legacy plugin-format install (from older install.sh) ----------
+
+if [ -d "$LEGACY_PLUGIN_DIR" ]; then
+  warn "Removing legacy plugin-format install at $LEGACY_PLUGIN_DIR"
+  rm -rf "$LEGACY_PLUGIN_DIR"
 fi
 
 # --- install -----------------------------------------------------------------
 
-log "Installing bug-bounty-recon plugin..."
-mkdir -p "$HOME/.claude/plugins"
+log "Installing into Claude Code (flat user-scope layout)..."
+mkdir -p "$DST_COMMANDS" "$DST_AGENTS"
 
-if [ -d "$PLUGIN_DST" ]; then
-  warn "Existing install found at $PLUGIN_DST — replacing."
-  rm -rf "$PLUGIN_DST"
-fi
+# Slash command
+cp "$SRC_COMMANDS/fingerprint.md" "$DST_COMMANDS/fingerprint.md"
+ok "Command installed: $DST_COMMANDS/fingerprint.md"
 
-cp -r "$PLUGIN_SRC" "$PLUGIN_DST"
-ok "Plugin installed to $PLUGIN_DST"
+# All 13 agents (1 orchestrator + 12 workers)
+INSTALLED_AGENTS=0
+for f in "$SRC_AGENTS"/*.md; do
+  [ -f "$f" ] || continue
+  cp "$f" "$DST_AGENTS/$(basename "$f")"
+  INSTALLED_AGENTS=$((INSTALLED_AGENTS + 1))
+done
+ok "Agents installed: $INSTALLED_AGENTS files in $DST_AGENTS/"
 
 # --- API key check -----------------------------------------------------------
 
@@ -67,11 +85,9 @@ fi
 echo
 ok "Installation complete."
 log "Next steps:"
-echo "  1. Restart Claude Code, OR run '/plugin reload' in an active session."
-echo "  2. Verify with '/plugin list' (you should see bug-bounty-recon v1.0.0)."
-echo "  3. From any working directory, run:"
+echo "  1. If Claude Code is already running, exit and restart it (the /clear command does NOT reload files)."
+echo "  2. From any working directory, run:"
 echo "       claude"
 echo "       > /fingerprint target.com"
 echo
-log "Plugin folder: $PLUGIN_DST"
 log "To uninstall, run: ./uninstall.sh"

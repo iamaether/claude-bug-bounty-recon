@@ -1,6 +1,6 @@
 # claude-bug-bounty-recon
 
-A Claude Code plugin that automates a 12-agent bug bounty recon pipeline. One head orchestrator agent drives 12 specialized worker subagents through subdomain enumeration, status sorting, crawling, port scanning, secret detection, and AI-driven attack-plan generation — invoked with a single slash command.
+A Claude Code slash command + 13 subagents that automate a 12-agent bug bounty recon pipeline. One head orchestrator drives 12 specialized worker subagents through subdomain enumeration, status sorting, crawling, port scanning, secret detection, and AI-driven attack-plan generation — invoked with `/fingerprint <target>`.
 
 ## Quick install (Kali Linux)
 
@@ -9,11 +9,11 @@ git clone https://github.com/iamaether/claude-bug-bounty-recon.git
 cd claude-bug-bounty-recon
 chmod +x install_tools.sh install.sh uninstall.sh
 ./install_tools.sh        # installs subfinder, amass, httpx, etc.
-./install.sh              # installs the plugin into ~/.claude/plugins/
+./install.sh              # installs /fingerprint + 13 agents into ~/.claude/
 export PDCP_API_KEY="your-projectdiscovery-key"
 ```
 
-Then:
+**Fully restart Claude Code** (exit + reopen — `/clear` does NOT reload files), then:
 
 ```bash
 claude
@@ -24,11 +24,13 @@ Output: `./recon/<target>/attack_plan.txt`.
 
 ## What's in here
 
-- [`bug-bounty-recon/`](bug-bounty-recon/) — the Claude Code plugin itself (1 slash command + 13 subagents)
+- [`bug-bounty-recon/`](bug-bounty-recon/) — source tree (1 slash command + 13 subagent files)
 - [`install_tools.sh`](install_tools.sh) — installs all 17 recon tools via apt + go install
-- [`install.sh`](install.sh) — copies the plugin into `~/.claude/plugins/`
-- [`uninstall.sh`](uninstall.sh) — removes the plugin (leaves the tools)
-- [`bug-bounty-recon/README.md`](bug-bounty-recon/README.md) — full plugin docs (architecture, usage, output layout)
+- [`install.sh`](install.sh) — copies the command and agents into Claude Code's user-scope dirs (`~/.claude/commands/`, `~/.claude/agents/`)
+- [`uninstall.sh`](uninstall.sh) — removes the command and agents (leaves the tools)
+- [`bug-bounty-recon/README.md`](bug-bounty-recon/README.md) — full docs (architecture, usage, output layout)
+
+> Note: this uses Claude Code's **flat user-scope layout**, not the `/plugins` marketplace system. The marketplace system requires registering a plugin via a marketplace.json, which adds friction. The flat layout auto-loads on Claude Code startup with zero config.
 
 ## Requirements
 

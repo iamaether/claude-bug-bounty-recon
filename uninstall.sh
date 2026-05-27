@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# uninstall.sh — removes the bug-bounty-recon plugin from Claude Code.
+# uninstall.sh — removes the bug-bounty-recon command and subagents from Claude Code.
 
 set -u
 
@@ -12,17 +12,49 @@ log()  { printf "%s[*]%s %s\n" "$C_BLUE"   "$C_RESET" "$1"; }
 ok()   { printf "%s[+]%s %s\n" "$C_GREEN"  "$C_RESET" "$1"; }
 warn() { printf "%s[!]%s %s\n" "$C_YELLOW" "$C_RESET" "$1"; }
 
-PLUGIN_DST="$HOME/.claude/plugins/bug-bounty-recon"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SRC_AGENTS="$SCRIPT_DIR/bug-bounty-recon/agents"
 
-if [ ! -d "$PLUGIN_DST" ]; then
-  warn "Plugin is not installed at $PLUGIN_DST — nothing to remove."
-  exit 0
+DST_COMMANDS="$HOME/.claude/commands"
+DST_AGENTS="$HOME/.claude/agents"
+LEGACY_PLUGIN_DIR="$HOME/.claude/plugins/bug-bounty-recon"
+
+REMOVED=0
+
+# Slash command
+if [ -f "$DST_COMMANDS/fingerprint.md" ]; then
+  rm -f "$DST_COMMANDS/fingerprint.md"
+  ok "Removed $DST_COMMANDS/fingerprint.md"
+  REMOVED=$((REMOVED + 1))
 fi
 
-log "Removing $PLUGIN_DST..."
-rm -rf "$PLUGIN_DST"
-ok "bug-bounty-recon plugin uninstalled."
+# Agents — only remove files that match what we installed (use source folder as the manifest)
+if [ -d "$SRC_AGENTS" ]; then
+  for f in "$SRC_AGENTS"/*.md; do
+    [ -f "$f" ] || continue
+    target="$DST_AGENTS/$(basename "$f")"
+    if [ -f "$target" ]; then
+      rm -f "$target"
+      ok "Removed $target"
+      REMOVED=$((REMOVED + 1))
+    fi
+  done
+else
+  warn "Source folder $SRC_AGENTS not found — cannot match agent files for removal."
+  warn "If you installed before and lost the source, remove agents manually from $DST_AGENTS/"
+fi
+
+# Legacy plugin-format install (if present from earlier installer)
+if [ -d "$LEGACY_PLUGIN_DIR" ]; then
+  rm -rf "$LEGACY_PLUGIN_DIR"
+  ok "Removed legacy plugin directory $LEGACY_PLUGIN_DIR"
+  REMOVED=$((REMOVED + 1))
+fi
 
 echo
-log "Note: this does NOT remove the recon tools (subfinder, etc.)."
-log "If you also want to remove the tools, use 'apt-get remove' / 'rm \$HOME/go/bin/<tool>' manually."
+if [ "$REMOVED" -eq 0 ]; then
+  warn "Nothing to remove — bug-bounty-recon was not installed."
+else
+  ok "Uninstall complete ($REMOVED items removed)."
+fi
+log "Note: this does NOT remove the recon tools (subfinder, etc.). Use apt-get / rm \$HOME/go/bin/<tool> manually."

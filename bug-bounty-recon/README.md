@@ -37,11 +37,11 @@ Each worker has a fixed contract (objective, input/output paths, scope, dedup, s
 Inside your Kali VM, clone the repo and run the two installers:
 
 ```bash
-git clone <repo-url>
-cd bug_bounty_recon
+git clone https://github.com/iamaether/claude-bug-bounty-recon.git
+cd claude-bug-bounty-recon
 chmod +x install_tools.sh install.sh uninstall.sh
 ./install_tools.sh    # installs subfinder, amass, httpx, etc.
-./install.sh          # installs the plugin into ~/.claude/plugins/
+./install.sh          # installs /fingerprint + 13 agents into ~/.claude/
 ```
 
 Then export your ProjectDiscovery key (required for `chaos`):
@@ -51,15 +51,25 @@ export PDCP_API_KEY="your-key-here"
 # Persist by appending to ~/.bashrc or ~/.zshrc
 ```
 
-Restart Claude Code, or run `/plugin reload` in an active session. Verify with:
+**Restart Claude Code** (fully exit and reopen — `/clear` does NOT reload files). Then verify:
 
 ```
-/plugin list
+/help
 ```
 
-You should see `bug-bounty-recon` listed.
+You should see `/fingerprint` listed under commands.
 
-To remove the plugin later: `./uninstall.sh` (leaves the recon tools alone).
+To remove: `./uninstall.sh` (leaves the recon tools alone).
+
+## Install layout
+
+The installer uses Claude Code's flat user-scope layout (NOT the plugin/marketplace system):
+
+- `~/.claude/commands/fingerprint.md` — the slash command
+- `~/.claude/agents/recon-orchestrator.md` — the head agent
+- `~/.claude/agents/subdomain-enumerator.md` ... `ai-prioritizer.md` — 12 worker agents
+
+These auto-load on Claude Code startup without any marketplace registration.
 
 ## Use
 
