@@ -4,6 +4,6 @@
   "description": "Automated 12-agent bug bounty recon pipeline. Run /fingerprint <target> from inside a Kali VM with the required recon tools installed.",
   "author": {
     "name": "Aayush Pokharel (Aether)",
-    "email": "pokhare17@coventry.ac.uk"
+    "email": "*************"
   }
 }
